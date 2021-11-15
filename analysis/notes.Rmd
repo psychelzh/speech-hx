@@ -2,7 +2,7 @@
 title: "Analysis Notes"
 author: "Liang Zhang"
 date: "2021/11/14"
-output: 
+output:
   html_document:
     code_folding: show
 knit: (function(input, ...) {
@@ -29,18 +29,18 @@ tar_option_set(packages = "tidyverse")
 ```{targets load-data}
 list(
   tarchetypes::tar_files_input(
-    inputs, 
+    inputs,
     fs::dir_ls("data", recurse = TRUE, type = "file")
   ),
   tar_target(
-    data, 
-    readxl::read_excel(inputs) |> 
+    data,
+    readxl::read_excel(inputs) |>
       add_column(
-        path = inputs |> 
-          fs::path_file() |> 
+        path = inputs |>
+          fs::path_file() |>
           fs::path_ext_remove()
-      ) |> 
-      separate(path, c("format", "time"), sep = 1, convert = TRUE), 
+      ) |>
+      separate(path, c("format", "time"), sep = 1, convert = TRUE),
     pattern = map(inputs)
   )
 )
