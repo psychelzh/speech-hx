@@ -1,0 +1,121 @@
+---
+title: "Data Preprocessing"
+author: "Liang Zhang"
+date: "2021/11/14"
+output:
+  html_document:
+    code_folding: hide
+knit: (function(input, ...) {
+    rmarkdown::render(
+      input,
+      output_dir = fs::path(here::here(), "output"),
+      ...
+    )
+  })
+---
+
+```{r setup, class.source="fold-hide"}
+library(targets)
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  tar_interactive = FALSE, 
+  warning = FALSE, 
+  message = FALSE
+)
+tar_unscript()
+```
+
+```{targets tar-options, tar_globals=TRUE, include=FALSE}
+future::plan(future.callr::callr, workers = 8)
+tar_option_set(packages = c("tidyverse", "ggraph"))
+```
+
+```{targets tar-global-funs, tar_globals=TRUE, include=FALSE}
+vis_graph <- function(g, title, index_recodes, edge_facet = ~ time) {
+  ggraph(g, layout = "igraph", algorithm = "circle") +
+    geom_edge_link(aes(width = 1 - distance)) +
+    geom_node_label(aes(label = index_recodes[name])) +
+    scale_edge_width(range = c(0.1, 2), guide = "none") +
+    facet_edges(edge_facet, labeller = "label_both") +
+    theme_graph() +
+    labs(title = title)
+}
+```
+
+```{targets load-data, include=FALSE}
+list(
+  tarchetypes::tar_files_input(
+    inputs,
+    fs::dir_ls(here::here("data"), recurse = TRUE, type = "file")
+  ),
+  tar_target(
+    data,
+    readxl::read_excel(inputs) |>
+      mutate(
+        across(.fns = as.numeric),
+        format_time = str_extract(inputs, "(?<=/)\\w{1}\\d+")
+      ) |> 
+      separate(
+        format_time, c("format", "time"),
+        sep = 1, convert = TRUE
+      ),
+    pattern = map(inputs)
+  ),
+  tar_target(
+    index_recodes, 
+    setdiff(names(data), c("IID", "SID", "format", "time")) |> 
+      as_tibble_col(column_name = "name") |> 
+      mutate(code = LETTERS[seq_len(n())]) |> 
+      deframe()
+  ),
+  tar_target(
+    distances,
+    data |> 
+      group_by(SID, format, time) |> 
+      group_modify(
+        ~ {
+          mat <- .x |>
+            select(-IID) |>
+            t()
+          bind_rows(
+            cosine = proxy::dist(mat, method = "cosine") |> broom::tidy(),
+            bray = proxy::dist(mat, method = "bray") |> broom::tidy(),
+            .id = "type"
+          )
+        }
+      ) |>
+      ungroup()
+  ),
+  tar_target(
+    graphs,
+    distances |> 
+      group_nest(SID, format, type) |> 
+      mutate(
+        graph = map(
+          data,
+          ~ . |> 
+            select(item1, item2, distance, time) |> 
+            tidygraph::as_tbl_graph()
+        )
+      )
+  ),
+  tar_target(
+    plot_graphs,
+    graphs |> 
+      mutate(
+        plot = map2(
+          graph, type,
+          ~ vis_graph(
+            .x, 
+            title = str_c("Distance measure: ", .y),
+            index_recodes = index_recodes
+          )
+        )
+      )
+  )
+)
+```
+
+```{r include=FALSE}
+tar_make_future(workers = 12)
+```
