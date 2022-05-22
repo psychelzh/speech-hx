@@ -1,0 +1,42 @@
+---
+title: "Visualize Graphs"
+author: "Liang Zhang"
+format: 
+  html:
+    code-fold: true
+    toc: true
+    toc-location: left
+    self-contained: true
+editor: visual
+execute: 
+  warning: false
+---
+
+```{r}
+library(tidyverse)
+library(showtext)
+library(ggraph)
+library(patchwork)
+targets::tar_load(plot_graphs)
+targets::tar_load(index_recodes)
+users <- unique(plot_graphs$SID)
+```
+
+由于之前的$\chi^2$距离取值不能统一在$[0,1]$区间，本次我们采用两个取值范围恰好在此区间的距离算法。这两个分别是：**cosine不相似性**和**Bray--Curtis不相似性**。
+
+Cosine不相似性其实就是把测到的指标当作向量，然后根据向量的夹角来确定距离。夹角越小，则距离越小。可以参考[此维基百科文章](https://en.wikipedia.org/wiki/Cosine_similarity)了解更多内容。
+
+Bray--Curtis不相似性则计算了所有指标的绝对距离占数目的比例。可以参考[此维基百科文章](https://en.wikipedia.org/wiki/Bray%E2%80%93Curtis_dissimilarity)了解更多。
+
+```{r}
+#| results: asis
+users |> 
+  map_chr(
+    ~ knitr::knit_expand(
+      "tempalte_vis_network.Rmd", 
+      user = .
+    )
+  ) |> 
+  knitr::knit_child(text = _, quiet = TRUE) |> 
+  cat(sep = "\n\n")
+```
